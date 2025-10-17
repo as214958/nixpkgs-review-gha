@@ -92,11 +92,6 @@ jobs:
             flake.lock
             flake.nix
 
-      - name: setup nix
-        uses: ./.github/actions/setup-nix
-        with:
-          system: ${{ matrix.system }}
-
       - name: install packages
         run: |
           pkgs=(coreutils nixpkgs-review jq gnused)

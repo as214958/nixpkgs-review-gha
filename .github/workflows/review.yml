@@ -92,24 +92,7 @@ jobs:
             flake.lock
             flake.nix
 
-      - name: install packages
-        run: |
-          pkgs=(coreutils nixpkgs-review jq gnused)
-          if [[ ${{ inputs.push-to-cache && vars.ATTIC_SERVER != '' && vars.ATTIC_CACHE != '' }} = true ]]; then
-            pkgs+=(attic-client)
-          elif [[ ${{ inputs.push-to-cache && vars.CACHIX_CACHE != '' }} = true ]]; then
-            pkgs+=(cachix)
-          fi
-          nix profile add "${pkgs[@]/#/.#}"
-
-      - name: clone nixpkgs
-        uses: actions/checkout@v4
-        with:
-          repository: NixOS/nixpkgs
-          path: nixpkgs
-          persist-credentials: false
-
-      - name: run nixpkgs-review ${{ inputs.extra-args }}
+      - name: run nix run nixpkgs#nixpkgs-review ${{ inputs.extra-args }}
         run: |
           nixpkgs-review -- \
             pr ${PR_NUMBER} \

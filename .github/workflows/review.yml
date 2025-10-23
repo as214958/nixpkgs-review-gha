@@ -165,6 +165,7 @@ jobs:
       - name: generate report
         id: report
         run: |
+          nix-shell -p jq
           touch fetch_cmd
           cat fetch_cmd
           dir=~/.cache/nixpkgs-review/pr-${PR_NUMBER}
@@ -178,7 +179,7 @@ jobs:
             echo ":white_check_mark: *No rebuilds*" >> "$dir/report.md"
           fi
           cat $dir/report.md
-          nix run nixpkgs#jq -c '.+{$md, $fetch_cmd}' $dir/report.json \
+          jq -c '.+{$md, $fetch_cmd}' $dir/report.json \
             --rawfile md $dir/report.md \
             --rawfile fetch_cmd fetch_cmd \
             > report_${{ matrix.system }}.json
@@ -205,12 +206,13 @@ jobs:
       - name: generate report
         id: report
         run: |
+          nix-shell -p jq
           systems=(x86_64-linux aarch64-linux x86_64-darwin aarch64-darwin)
 
           for system in "${systems[@]}"; do
             [[ -s "report_${system}.json" ]] || continue
-            nix run nixpkgs#jq -j '.md' "report_${system}.json" > "report_${system}.md"
-            nix run nixpkgs#jq -j '.fetch_cmd' "report_${system}.json" > "fetch_cmd_${system}"
+            jq -j '.md' "report_${system}.json" > "report_${system}.md"
+            jq -j '.fetch_cmd' "report_${system}.json" > "fetch_cmd_${system}"
           done
 
           echo -e "## \`nixpkgs-review\` result\n" >> report.md

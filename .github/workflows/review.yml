@@ -92,7 +92,6 @@ jobs:
           path: nixpkgs
           persist-credentials: false
 
-      - uses: actions/checkout@v4
       - name: run nix run nixpkgs#nixpkgs-review ${{ inputs.extra-args }}
         run: |
           nix run nixpkgs#nixpkgs-review -- \

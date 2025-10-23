@@ -86,12 +86,6 @@ jobs:
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
-        with:
-          sparse-checkout: |
-            .github/actions
-            flake.lock
-            flake.nix
-
       - name: run nix run nixpkgs#nixpkgs-review ${{ inputs.extra-args }}
         run: |
           nix run nixpkgs#nixpkgs-review -- \

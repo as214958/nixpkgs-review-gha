@@ -22,16 +22,6 @@ on:
         description: "nixpkgs-review extra args"
         required: false
         type: string
-      push-to-cache:
-        description: "Push to cache"
-        required: true
-        type: boolean
-        default: true
-      upterm:
-        description: "Start upterm session after nixpkgs-review"
-        required: true
-        type: boolean
-        default: false
       post-result:
         description: "Post Result"
         required: true
@@ -108,90 +98,6 @@ jobs:
           EXTRA_ARGS: ${{ inputs.extra-args }}
           PR_JSON: ${{ needs.prepare.outputs.pr }}
 
-      - name: push results to cache
-        if: ${{ inputs.push-to-cache && ((vars.ATTIC_SERVER != '' && vars.ATTIC_CACHE != '') || vars.CACHIX_CACHE != '') }}
-        run: |
-          set -ex
-
-          (realpath -qe ~/.cache/nixpkgs-review/pr-${PR_NUMBER}/results/* || true) > paths
-          [[ -s paths ]] || exit 0
-
-          if [[ ${{ vars.ATTIC_SERVER != '' && vars.ATTIC_CACHE != '' }} = true ]]; then
-            attic login default "$ATTIC_SERVER" "$ATTIC_TOKEN"
-            if ! attic cache info "$ATTIC_CACHE"; then
-              echo "::error::attic returned an error"
-              exit 0
-            fi
-            attic push --stdin "$ATTIC_CACHE" < paths
-            info=$(curl -f -H "Authorization: Bearer ${ATTIC_TOKEN}" "${ATTIC_SERVER}_api/v1/cache-config/${ATTIC_CACHE}")
-            substituter_endpoint=$(jq -r .substituter_endpoint <<< "$info")
-            public_key=$(jq -r .public_key <<< "$info")
-            is_public=$(jq -r .is_public <<< "$info")
-          elif [[ ${{ vars.CACHIX_CACHE != '' }} = true ]]; then
-            [[ -n "$CACHIX_SIGNING_KEY" ]] || unset CACHIX_SIGNING_KEY
-            cachix push "$CACHIX_CACHE" < paths
-            info=$(curl -f -H "Authorization: Bearer ${CACHIX_AUTH_TOKEN}" "https://app.cachix.org/api/v1/cache/${CACHIX_CACHE}")
-            substituter_endpoint=$(jq -r .uri <<< "$info")
-            public_key=$(jq -r '.publicSigningKeys[]' <<< "$info")
-            is_public=$(jq -r .isPublic <<< "$info")
-          fi
-
-          [[ "$is_public" = true ]] || exit 0
-
-          echo "nix-store -r --add-root nixpkgs-pr-${PR_NUMBER}-${{ matrix.system }} \\" >> fetch_cmd
-          echo "  --option binary-caches 'https://cache.nixos.org/ $substituter_endpoint' \\" >> fetch_cmd
-          echo "  --option trusted-public-keys '" >> fetch_cmd
-          echo "  cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=" >> fetch_cmd
-          echo "  $public_key" >> fetch_cmd
-          echo -n "  '" >> fetch_cmd
-          for p in $(cat paths); do
-            echo -e " \\" >> fetch_cmd
-            echo -n "  $p" >> fetch_cmd
-          done
-        env:
-          ATTIC_SERVER: ${{ vars.ATTIC_SERVER }}
-          ATTIC_CACHE: ${{ vars.ATTIC_CACHE }}
-          ATTIC_TOKEN: ${{ secrets.ATTIC_TOKEN }}
-          CACHIX_CACHE: ${{ vars.CACHIX_CACHE }}
-          CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
-          CACHIX_SIGNING_KEY: ${{ secrets.CACHIX_SIGNING_KEY }}
-
-      - name: start upterm session
-        if: ${{ inputs.upterm }}
-        uses: owenthereal/action-upterm@v1
-        with:
-          limit-access-to-actor: true
-
-      - name: generate report
-        id: report
-        run: |
-          nix-shell -p jq
-          touch fetch_cmd
-          cat fetch_cmd
-          dir=~/.cache/nixpkgs-review/pr-${PR_NUMBER}
-          if [[ "$OS" != "Linux" ]]; then
-            sandbox=$(nix config show sandbox)
-            sed -i '/^###/s/$/ (sandbox = '"$sandbox"')/' "$dir/report.md"
-          fi
-          if ! [[ -s "$dir/report.md" ]]; then
-            echo -e "\n---" >> "$dir/report.md"
-            echo "### \`${{ matrix.system }}\`" >> "$dir/report.md"
-            echo ":white_check_mark: *No rebuilds*" >> "$dir/report.md"
-          fi
-          cat $dir/report.md
-          jq -c '.+{$md, $fetch_cmd}' $dir/report.json \
-            --rawfile md $dir/report.md \
-            --rawfile fetch_cmd fetch_cmd \
-            > report_${{ matrix.system }}.json
-        env:
-          OS: ${{ runner.os }}
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: report_${{ matrix.system }}.json
-          path: report_${{ matrix.system }}.json
-          if-no-files-found: error
-
   report:
     runs-on: ubuntu-latest
     needs: [prepare, review]
@@ -206,13 +112,13 @@ jobs:
       - name: generate report
         id: report
         run: |
-          nix-shell -p jq
+          
           systems=(x86_64-linux aarch64-linux x86_64-darwin aarch64-darwin)
 
           for system in "${systems[@]}"; do
             [[ -s "report_${system}.json" ]] || continue
-            jq -j '.md' "report_${system}.json" > "report_${system}.md"
-            jq -j '.fetch_cmd' "report_${system}.json" > "fetch_cmd_${system}"
+            nix run nixpkgs#jq -- -j '.md' "report_${system}.json" > "report_${system}.md"
+            nix run nixpkgs#jq -- -j '.fetch_cmd' "report_${system}.json" > "fetch_cmd_${system}"
           done
 
           echo -e "## \`nixpkgs-review\` result\n" >> report.md
@@ -240,7 +146,7 @@ jobs:
           done
 
           cat report.md
-          echo success=$(jq -s 'all(.[].result[]; .failed==[])' report_*.json) >> "$GITHUB_OUTPUT"
+          echo success=$(nix run nixpkgs#jq -- -s 'all(.[].result[]; .failed==[])' report_*.json) >> "$GITHUB_OUTPUT"
           sed '1s|$| for [#'"$PR_NUMBER"'](https://github.com/NixOS/nixpkgs/pull/'"$PR_NUMBER"')|' report.md >> $GITHUB_STEP_SUMMARY
         env:
           HEAD: ${{ needs.prepare.outputs.head }}

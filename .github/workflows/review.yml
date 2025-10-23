@@ -57,15 +57,15 @@ jobs:
             echo "mergeable state not known yet, retrying..."
             sleep 2
           done
-          jq <<< "$pr"
-          if [[ "$(jq '.merged or .mergeable' <<< "$pr")" != "true" ]]; then
+          nix run nixpkgs#jq -- <<< "$pr"
+          if [[ "$(nix run nixpkgs#jq -- '.merged or .mergeable' <<< "$pr")" != "true" ]]; then
             echo "::error::PR is not mergeable"
             exit 1
           fi
           echo "pr=$pr" >> "$GITHUB_OUTPUT"
-          echo "head=$(nix run nixpkgs#jq -r '.head.sha' <<< "$pr")" >> "$GITHUB_OUTPUT"
-          echo "merge=$(nix run nixpkgs#jq -r '.merge_commit_sha' <<< "$pr")" >> "$GITHUB_OUTPUT"
-          echo "author_id=$(nix run nixpkgs#jq -r '.user.id' <<< "$pr")" >> "$GITHUB_OUTPUT"
+          echo "head=$(nix run nixpkgs#jq -- -r '.head.sha' <<< "$pr")" >> "$GITHUB_OUTPUT"
+          echo "merge=$(nix run nixpkgs#jq -- -r '.merge_commit_sha' <<< "$pr")" >> "$GITHUB_OUTPUT"
+          echo "author_id=$(nix run nixpkgs#jq -- -r '.user.id' <<< "$pr")" >> "$GITHUB_OUTPUT"
         env:
           GH_TOKEN: ${{ github.token }}
 

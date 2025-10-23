@@ -73,6 +73,17 @@ jobs:
     needs: [prepare]
     strategy:
       fail-fast: false
+      matrix:
+        system:
+          - x86_64-linux
+          - aarch64-linux
+          - x86_64-darwin
+          - aarch64-darwin
+        exclude:
+          - system: ${{ !inputs.x86_64-linux && 'x86_64-linux' || '' }}
+          - system: ${{ !inputs.aarch64-linux && 'aarch64-linux' || '' }}
+          - system: ${{ inputs.x86_64-darwin == 'no' && 'x86_64-darwin' || '' }}
+          - system: ${{ inputs.aarch64-darwin == 'no' && 'aarch64-darwin' || '' }}
     runs-on: self-hosted
     steps:
       - name: clone nixpkgs

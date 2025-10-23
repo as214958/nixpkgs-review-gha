@@ -100,7 +100,6 @@ jobs:
             --no-headers \
             --print-result \
             --build-args="-L" \
-            --pr-json="$PR_JSON" \
             $EXTRA_ARGS \
             || true
         working-directory: nixpkgs
